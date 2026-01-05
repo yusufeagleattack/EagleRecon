@@ -162,7 +162,6 @@ def xss_test(domain):
 
     headers = {"User-Agent": "EagleRecon"}
 
-    # 🔧 GYARA KAƊAN ANAN (KADA KA CANJA WANI ABU)
     if domain.startswith("http://") or domain.startswith("https://"):
         base_url = domain.rstrip("/")
     else:
