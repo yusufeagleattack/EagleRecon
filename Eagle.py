@@ -28,14 +28,35 @@ BANNER = f"""{Fore.CYAN}
 # ================== CONFIG ==================
 PORTS = [21,22,25,53,80,110,143,443,445,587,8080,8443,3306,3389,5900]
 
+AUTO_STOP = True
+
 XSS_PAYLOADS = [
     "<script>alert(1)</script>",
     "<img src=x onerror=alert(1)>",
     "<svg/onload=alert(1)>"
 ]
 
-RESULTS = {"target": ""}
+XSS_PARAMS = ["q", "s", "search", "id", "query", "keyword"]
 
+XSS_PATHS = [
+    "/",
+    "/search",
+    "/login",
+    "/api/user",
+    "/api/search",
+    "/v1/users"
+]
+
+RESULTS = {
+    "target": "",
+    "dns": [],
+    "ports": [],
+    "whois": {},
+    "fingerprint": {},
+    "cookies": [],
+    "xss": [],
+    "subdomains": []
+}
 # ================== HELPERS ==================
 def table(headers):
     t = PrettyTable([Fore.CYAN + h + Style.RESET_ALL for h in headers])
@@ -109,11 +130,11 @@ def whois_info(domain):
 
 def fingerprint(domain):
     section("Fingerprint")
-    t = table(["Header","Value"])
+    t = table(["Header", "Value"])
     try:
         r = requests.get(f"https://{domain}", timeout=5)
-        for h in ["Server","X-Powered-By","Content-Type"]:
-            val = r.headers.get(h,"Unknown")
+        for h in ["Server", "X-Powered-By", "Content-Type"]:
+            val = r.headers.get(h, "Unknown")
             color = Fore.GREEN if val != "Unknown" else Fore.WHITE
             t.add_row([Fore.YELLOW + h, color + val])
     except:
@@ -137,16 +158,65 @@ def cookies(domain):
 
 def xss_test(domain):
     section("Reflected XSS")
-    t = table(["Payload","Method","Result"])
-    base = f"https://{domain}/"
-    for p in XSS_PAYLOADS:
-        for m in ["GET","POST"]:
-            try:
-                r = requests.get(base, params={"q":p}) if m=="GET" else requests.post(base,data={"q":p})
-                hit = p in r.text
-                t.add_row([p,m, Fore.GREEN+"YES" if hit else Fore.WHITE+"NO"])
-            except:
-                pass
+    t = table(["Path", "Param", "Payload", "Method", "Reflected"])
+
+    headers = {"User-Agent": "EagleRecon"}
+
+    # 🔧 GYARA KAƊAN ANAN (KADA KA CANJA WANI ABU)
+    if domain.startswith("http://") or domain.startswith("https://"):
+        base_url = domain.rstrip("/")
+    else:
+        base_url = f"https://{domain}"
+
+    for path in XSS_PATHS:
+        url = f"{base_url}{path}"
+
+        for param in XSS_PARAMS:
+            for payload in XSS_PAYLOADS:
+                for method in ["GET", "POST"]:
+                    try:
+                        if method == "GET":
+                            r = requests.get(
+                                url,
+                                params={param: payload},
+                                headers=headers,
+                                timeout=7,
+                                verify=False
+                            )
+                        else:
+                            r = requests.post(
+                                url,
+                                data={param: payload},
+                                headers=headers,
+                                timeout=7,
+                                verify=False
+                            )
+
+                        reflected = payload in r.text
+
+                        t.add_row([
+                            Fore.CYAN + path,
+                            Fore.YELLOW + param,
+                            Fore.WHITE + payload,
+                            method,
+                            Fore.GREEN + "YES" if reflected else Fore.RED + "NO"
+                        ])
+
+                        if reflected:
+                            RESULTS["xss"].append({
+                                "path": path,
+                                "param": param,
+                                "payload": payload,
+                                "method": method
+                            })
+
+                            print(Fore.GREEN + "\n[✓] XSS FOUND — AUTO STOP ENABLED")
+                            print(t)
+                            return
+
+                    except requests.exceptions.RequestException:
+                        pass
+
     print(t)
 
 def subdomains(domain):
