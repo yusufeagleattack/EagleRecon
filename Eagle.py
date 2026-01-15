@@ -20,7 +20,8 @@ BANNER = f"""{Fore.CYAN}
 
 ════════════════════════════════════════════
  Precision Recon Tool for Bug Hunters
- Author : Yusuf Abubakar
+      Authoriz : Yusuf Abubakar 
+           Ethical Hacker
 ════════════════════════════════════════════
 {Style.RESET_ALL}
 """
@@ -30,23 +31,6 @@ PORTS = [21,22,25,53,80,110,143,443,445,587,8080,8443,3306,3389,5900]
 
 AUTO_STOP = True
 
-XSS_PAYLOADS = [
-    "<script>alert(1)</script>",
-    "<img src=x onerror=alert(1)>",
-    "<svg/onload=alert(1)>"
-]
-
-XSS_PARAMS = ["q", "s", "search", "id", "query", "keyword"]
-
-XSS_PATHS = [
-    "/",
-    "/search",
-    "/login",
-    "/api/user",
-    "/api/search",
-    "/v1/users"
-]
-
 RESULTS = {
     "target": "",
     "dns": [],
@@ -54,7 +38,6 @@ RESULTS = {
     "whois": {},
     "fingerprint": {},
     "cookies": [],
-    "xss": [],
     "subdomains": []
 }
 # ================== HELPERS ==================
@@ -156,68 +139,6 @@ def cookies(domain):
         t.add_row(["Error","-","-"])
     print(t)
 
-def xss_test(domain):
-    section("Reflected XSS")
-    t = table(["Path", "Param", "Payload", "Method", "Reflected"])
-
-    headers = {"User-Agent": "EagleRecon"}
-
-    if domain.startswith("http://") or domain.startswith("https://"):
-        base_url = domain.rstrip("/")
-    else:
-        base_url = f"https://{domain}"
-
-    for path in XSS_PATHS:
-        url = f"{base_url}{path}"
-
-        for param in XSS_PARAMS:
-            for payload in XSS_PAYLOADS:
-                for method in ["GET", "POST"]:
-                    try:
-                        if method == "GET":
-                            r = requests.get(
-                                url,
-                                params={param: payload},
-                                headers=headers,
-                                timeout=7,
-                                verify=False
-                            )
-                        else:
-                            r = requests.post(
-                                url,
-                                data={param: payload},
-                                headers=headers,
-                                timeout=7,
-                                verify=False
-                            )
-
-                        reflected = payload in r.text
-
-                        t.add_row([
-                            Fore.CYAN + path,
-                            Fore.YELLOW + param,
-                            Fore.WHITE + payload,
-                            method,
-                            Fore.GREEN + "YES" if reflected else Fore.RED + "NO"
-                        ])
-
-                        if reflected:
-                            RESULTS["xss"].append({
-                                "path": path,
-                                "param": param,
-                                "payload": payload,
-                                "method": method
-                            })
-
-                            print(Fore.GREEN + "\n[✓] XSS FOUND — AUTO STOP ENABLED")
-                            print(t)
-                            return
-
-                    except requests.exceptions.RequestException:
-                        pass
-
-    print(t)
-
 def subdomains(domain):
     section("Subdomains")
     subs = set()
@@ -246,7 +167,6 @@ def main():
     ap.add_argument("--whois", action="store_true")
     ap.add_argument("--fingerprint", action="store_true")
     ap.add_argument("--cookies", action="store_true")
-    ap.add_argument("--xss", action="store_true")
     ap.add_argument("--subdomains", action="store_true")
     args = ap.parse_args()
 
@@ -258,7 +178,6 @@ def main():
     if args.all or args.whois: whois_info(domain)
     if args.all or args.fingerprint: fingerprint(domain)
     if args.all or args.cookies: cookies(domain)
-    if args.all or args.xss: xss_test(domain)
     if args.all or args.subdomains: subdomains(domain)
 
 if __name__ == "__main__":
